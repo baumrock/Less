@@ -67,40 +67,76 @@ class Less_Functions {
 	}
 
 	public function rgb( $r = null, $g = null, $b = null ) {
-		if ( $r === null || $g === null || $b === null ) {
-			throw new Less_Exception_Compiler( "rgb expects three parameters" );
+		$color = $this->rgba( $r, $g, $b, 1.0 );
+		if ( $color ) {
+			$color->value = 'rgb';
+			return $color;
 		}
-		return $this->rgba( $r, $g, $b, 1.0 );
 	}
 
 	public function rgba( $r = null, $g = null, $b = null, $a = null ) {
-		$rgb = [ $r, $g, $b ];
-		$rgb = array_map( [ __CLASS__, 'scaled' ], $rgb );
+		try {
+			if ( $r instanceof Less_Tree_Color ) {
+				if ( $g ) {
+					$a = self::number( $g );
+				} else {
+					$a = $r->alpha;
+				}
+				$color = new Less_Tree_Color( $r->rgb, $a );
+				$color->value = 'rgba';
+				return $color;
+			}
+			$rgb = [ $r, $g, $b ];
+			$rgb = array_map( [ __CLASS__, 'scaled' ], $rgb );
 
-		$a = self::number( $a );
-		return new Less_Tree_Color( $rgb, $a );
+			$a = self::number( $a );
+			$color = new Less_Tree_Color( $rgb, $a );
+			$color->value = 'rgba';
+			return $color;
+		} catch ( Exception $e ) {
+			// Pass through native CSS color functions, e.g. rgba(0, 0, 0, var(--opacity)).
+			// Backported from wikimedia/less.php 5.5.0 (T405815).
+		}
 	}
 
 	public function hsl( $h, $s, $l ) {
-		return $this->hsla( $h, $s, $l, 1.0 );
+		$color = $this->hsla( $h, $s, $l, 1.0 );
+		if ( $color ) {
+			$color->value = 'hsl';
+			return $color;
+		}
 	}
 
-	public function hsla( $h, $s, $l, $a ) {
-		$h = fmod( self::number( $h ), 360 ) / 360; // Classic % operator will change float to int
-		$s = self::clamp( self::number( $s ) );
-		$l = self::clamp( self::number( $l ) );
-		$a = self::clamp( self::number( $a ) );
+	public function hsla( $h = null, $s = null, $l = null, $a = null ) {
+		try {
+			if ( $h instanceof Less_Tree_Color ) {
+				if ( $s ) {
+					$a = self::number( $s );
+				} else {
+					$a = $h->alpha;
+				}
+				$color = new Less_Tree_Color( $h->rgb, $a );
+				$color->value = 'hsla';
+				return $color;
+			}
+			$h = fmod( self::number( $h ), 360 ) / 360; // Classic % operator will change float to int
+			$s = self::clamp( self::number( $s ) );
+			$l = self::clamp( self::number( $l ) );
+			$a = self::clamp( self::number( $a ) );
 
-		$m2 = $l <= 0.5 ? $l * ( $s + 1 ) : $l + $s - $l * $s;
+			$m2 = $l <= 0.5 ? $l * ( $s + 1 ) : $l + $s - $l * $s;
 
-		$m1 = $l * 2 - $m2;
+			$m1 = $l * 2 - $m2;
 
-		return $this->rgba(
-			self::hsla_hue( $h + 1 / 3, $m1, $m2 ) * 255,
-			self::hsla_hue( $h, $m1, $m2 ) * 255,
-			self::hsla_hue( $h - 1 / 3, $m1, $m2 ) * 255,
-			$a
-		);
+			return $this->rgba(
+				self::hsla_hue( $h + 1 / 3, $m1, $m2 ) * 255,
+				self::hsla_hue( $h, $m1, $m2 ) * 255,
+				self::hsla_hue( $h - 1 / 3, $m1, $m2 ) * 255,
+				$a
+			);
+		} catch ( Exception $e ) {
+			// Pass through native CSS color functions with CSS variables.
+		}
 	}
 
 	/**

@@ -2195,9 +2195,28 @@ class Less_Parser {
 			$this->save();
 			if ( $this->matchChar( '(' ) ) {
 				$v = $this->parseSelector();
-				if ( $v && $this->matchChar( ')' ) ) {
-					$e = new Less_Tree_Paren( $v );
-					$this->forget();
+				if ( $v ) {
+					// Support comma-separated selector lists inside parentheses,
+					// for pseudo-classes like :is(), :not(), :where(), :has().
+					// Backported from Less.js 4.2 (less.js#4290), elabx/less.php#1.
+					$selectors = [];
+					while ( $this->matchChar( ',' ) ) {
+						$selectors[] = $v;
+						$selectors[] = new Less_Tree_Anonymous( ',' );
+						$v = $this->parseSelector();
+					}
+
+					if ( $v && $this->matchChar( ')' ) ) {
+						if ( $selectors ) {
+							$selectors[] = $v;
+							$e = new Less_Tree_Paren( new Less_Tree_Expression( $selectors, true ) );
+						} else {
+							$e = new Less_Tree_Paren( $v );
+						}
+						$this->forget();
+					} else {
+						$this->restore();
+					}
 				} else {
 					$this->restore();
 				}
